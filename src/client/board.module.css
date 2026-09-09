@@ -1,0 +1,1771 @@
+/**
+ * Task-board styles. Scoped by the plugin's own data attributes so nothing
+ * leaks into the rest of the GUI; colors ride the dsh --dsw-* tokens so the
+ * board follows the active theme (light/dark and skins).
+ */
+
+/* --- center-column takeover (global rules, attribute-scoped) ----------------- */
+
+[data-pane='conversation'],
+[class*='centerCol'] {
+  position: relative;
+}
+
+/* The board container rides inside the conversation grid item as an extra
+   trailing child; hidden unless the board is active. */
+[data-dsh-taskboard-view] {
+  position: absolute;
+  inset: 0;
+  display: none;
+  z-index: 60;
+  container-name: task-board-view;
+  container-type: inline-size;
+  /* Opaque backdrop: the conversation subtree stays mounted under the view.
+     Even if the hide rule below were defeated by a stronger host inline
+     style, this background keeps sticky code-block banners (host z-index 6)
+     from showing through the active board (issue #100). */
+  background: var(--dsw-alias-bg-base);
+}
+
+/* The center column is single-occupant; the :not() guards keep the two
+   sibling panels (task board / ssh) from fighting over visibility if both
+   activation attributes ever coexist. */
+html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [data-dsh-taskboard-view] {
+  display: block;
+}
+
+/* While the board is active, the conversation content underneath is hidden
+   (it stays mounted and stateful). The !important is required: the dsh shell
+   (0.1.0-rc.6) wraps the conversation view in a node with an inline
+   `display: contents`, and inline styles beat a plain stylesheet rule. Without
+   it the composer (input card) stays visible at the bottom and paints over the
+   board modals' footer, hiding the run/delete buttons (issue #76).
+   The rule targets both the pane attribute and the center-column class so the
+   chat subtree (including the code-block copy banner, issue #100) stays hidden
+   whichever host container carries it. */
+html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [data-pane='conversation'] > :not([data-dsh-taskboard-view]),
+html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] > :not([data-dsh-taskboard-view]) {
+  display: none !important;
+}
+
+/* --- sidebar entry row ------------------------------------------------------- */
+
+.entry {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.entry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.entry[data-active] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.entryIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.entryIcon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.entryLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Collapsed rail: icon-only, centered, matching the shell's 56px rail. */
+:global([data-dsh-frame][data-sidebar-collapsed]) .entry,
+:global([data-sidebar-collapsed]) .entry {
+  justify-content: center;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+}
+
+:global([data-dsh-frame][data-sidebar-collapsed]) .entryLabel,
+:global([data-sidebar-collapsed]) .entryLabel {
+  display: none;
+}
+
+/* --- board frame -------------------------------------------------------------- */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 16px 16px;
+  gap: 12px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+}
+
+.boardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.boardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search {
+  flex: 0 1 260px;
+  min-width: 120px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+}
+
+.search::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- columns ------------------------------------------------------------------ */
+
+.columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 6px;
+  scrollbar-color: var(--dsw-alias-border-l3) var(--dsw-alias-interactive-bg-hover);
+  scrollbar-width: thin;
+}
+
+.columns::-webkit-scrollbar {
+  height: 10px;
+}
+
+.columns::-webkit-scrollbar-track {
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-radius: 999px;
+}
+
+.columns::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-border-l3);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.columns::-webkit-scrollbar-thumb:hover {
+  background: var(--dsw-alias-border-l4);
+  background-clip: content-box;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  flex: none;
+}
+
+.columnTitle {
+  margin: 0;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columnCount {
+  flex: none;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.statusDot[data-status='backlog'] { background: var(--dsw-alias-label-tertiary); }
+.statusDot[data-status='todo'] { background: var(--dsw-alias-state-business-primary); }
+.statusDot[data-status='running'] { background: var(--dsw-alias-state-warn-primary); }
+.statusDot[data-status='done'] { background: var(--dsw-alias-state-success-primary); }
+.statusDot[data-status='failed'] { background: var(--dsw-alias-state-error-primary); }
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 8px 10px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.columnEmpty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- dashboard (the board summary panel that takes over the failed slot) ------- */
+
+/* Scrollable content inside the dashboard column panel. */
+.dashBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 10px 12px;
+}
+
+.dashSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashSectionTitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Overview head row: the section title beside the today/total switcher. */
+.dashHeadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The today/total dimension switcher (pill pair inside the overview head). */
+.dashDimTabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+}
+
+.dashDimTab,
+.dashDimTabOn {
+  border: 0;
+  border-radius: 5px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.dashDimTabOn {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  box-shadow: var(--dsw-shadow-lv1);
+}
+
+.dashDimTab:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.dashDimTab:focus-visible,
+.dashDimTabOn:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+/* Status-count tile grid (2-up inside a 220px column). */
+.dashTiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dashTile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+}
+
+.dashTile .statusDot {
+  width: 6px;
+  height: 6px;
+}
+
+.dashTileValue {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dashTileLabel {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Settled-run tally row under the tiles. */
+.dashRunRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.dashSuccessRate {
+  color: var(--dsw-alias-state-success-primary);
+  font-weight: 600;
+}
+
+.dashMuted {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Interactive rows: upcoming schedules and failed tasks. */
+.dashRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.dashRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-l4);
+}
+
+.dashRow:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.dashRowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dashRowTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashRowError {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashRowTime {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Quick actions inside a failed-task row. */
+.dashActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 1px;
+}
+
+.dashActionButton {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.dashActionButton:hover {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l4);
+}
+
+.dashActionButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.dashEmpty {
+  padding: 6px 2px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- cards -------------------------------------------------------------------- */
+
+.card {
+  position: relative;
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  transition: box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+/* Card body: the full-area button that opens the task detail. */
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.card:hover {
+  box-shadow: var(--dsw-shadow-lv2);
+  border-color: var(--dsw-alias-border-l3);
+  transform: translateY(-1px);
+}
+
+.card[data-status='running'] {
+  border-color: var(--dsw-alias-state-warn-primary);
+}
+
+/* The stable card number "#N" minted by the Host: a small, quiet identifier
+   pinned above the title so tasks can be cited by number when assigning work. */
+.cardSerial {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Right padding keeps long title/excerpt lines clear of the top-right
+   session button. */
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  padding-right: 24px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardExcerpt {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dsw-alias-label-secondary);
+  padding-right: 24px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cardTime {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardSchedule {
+  flex: none;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Dependency-gate badge on a card: pending parent count. */
+.cardGate {
+  flex: none;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Rework badge on a card: rejection notes not yet consumed by an execution. */
+.cardRework {
+  flex: none;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-secondary);
+}
+
+.cardRun {
+  flex: none;
+}
+
+.cardRun[data-result='failed'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.cardRun[data-result='succeeded'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+/* Session button: top-right magnifier that jumps to the task's newest
+   execution session (falls back to the detail view without a session). */
+.cardSessionButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 50%;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cardSessionButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.cardRunningLabel {
+  font-size: 11px;
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.cardSpinner {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 2px solid var(--dsw-alias-state-warn-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: dshTbSpin 800ms linear infinite;
+}
+
+@keyframes dshTbSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- buttons ------------------------------------------------------------------ */
+
+.primaryButton {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--dsw-alias-button-info-fill);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--dsw-alias-button-info-hover);
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ghostButton {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.ghostButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dangerButton {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--dsw-alias-state-error-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dangerButton:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.dangerButton:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.linkButton {
+  padding: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-business-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+/* --- modals ------------------------------------------------------------------- */
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsw-alias-bg-mask-1);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(520px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  padding: 18px;
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-primary);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.confirmMessage {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.input {
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.input:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.select {
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  font-family: inherit;
+  max-width: 100%;
+}
+
+.input::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.formError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* --- detail ------------------------------------------------------------------- */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  background: var(--dsw-alias-bg-base);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--dsw-alias-separator-primary);
+  flex: none;
+}
+
+.detailTitle {
+  margin: 0;
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* The task's stable "#N" number beside the detail title. */
+.detailSerial {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statusBadge {
+  flex: none;
+  padding: 2px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statusBadge[data-status='running'] {
+  color: var(--dsw-alias-state-warn-primary);
+  border-color: var(--dsw-alias-state-warn-primary);
+}
+
+.statusBadge[data-status='done'] {
+  color: var(--dsw-alias-state-success-primary);
+  border-color: var(--dsw-alias-state-success-primary);
+}
+
+.statusBadge[data-status='failed'] {
+  color: var(--dsw-alias-state-error-primary);
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.detailBody {
+  padding: 14px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.detailSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detailSection h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-tertiary);
+  text-transform: none;
+}
+
+.detailText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- dependency gate --------------------------------------------------------- */
+
+/* Open-gate banner: every parent settled to done. */
+.gateOpen {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-state-success-primary);
+}
+
+/* The parent/child multi-select list (detail gate editor + new-task picker). */
+.depList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-interactive-bg-hover);
+  border-radius: 8px;
+}
+
+.depRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.depRow input {
+  accent-color: var(--dsw-alias-state-business-primary);
+  flex: none;
+}
+
+.depTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The stable "#N" number pinned before the dependency row's title. */
+.depSerial {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.depStatus {
+  flex: none;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.depStatus[data-status='done'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.depStatus[data-status='failed'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.depStatus[data-status='running'] {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+
+/* --- scheduled runs ---------------------------------------------------------- */
+
+.scheduleToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.scheduleToggle input {
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheduleInput {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--dsw-font-markdown-code-block-small);
+  font-size: 12.5px;
+}
+
+.scheduleInputInvalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.scheduleInputInvalid:focus {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.schedulePreset {
+  flex: none;
+  padding: 7px 8px;
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+}
+
+.scheduleMeta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.promptBlock {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: var(--dsw-font-markdown-code-block-small);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-markdown-code-block);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.executionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.executionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.executionBadge {
+  flex: none;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-secondary);
+}
+
+.executionBadge[data-result='succeeded'] {
+  color: var(--dsw-alias-state-success-primary);
+  background: transparent;
+}
+
+.executionBadge[data-result='failed'] {
+  color: var(--dsw-alias-state-error-primary);
+  background: transparent;
+}
+
+.executionBadge[data-result='cancelled'] {
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+}
+
+/* Rework-history row states: pending notes keep the warn badge, consumed
+   notes mute to the neutral label color. */
+.executionBadge[data-rework='pending'] {
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-secondary);
+}
+
+.executionBadge[data-rework='consumed'] {
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+}
+
+/* The modification-requirement text of one rework round. */
+.reworkNoteText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.executionTimes {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.executionError {
+  width: 100%;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+  overflow-wrap: anywhere;
+}
+
+.moveRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detailFooter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--dsw-alias-separator-primary);
+  flex: none;
+}
+
+.detailMeta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- constrained board containers ------------------------------------------ */
+
+@container task-board-view (max-width: 768px) {
+  .board {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .boardHeader {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .backButton {
+    flex: 0 0 auto;
+    order: 1;
+  }
+
+  .boardTitle {
+    flex: 1 1 auto;
+    order: 2;
+  }
+
+  .boardHeader > .detailMeta {
+    flex: 1 0 100%;
+    margin-left: 0;
+    order: 3;
+  }
+
+  .search {
+    flex: 1 0 100%;
+    min-width: 0;
+    order: 4;
+  }
+
+  .boardHeader > button:not(.backButton) {
+    flex: 1 1 0;
+    min-width: 0;
+    order: 5;
+  }
+
+  .columns {
+    grid-auto-columns: 86cqw;
+    gap: 10px;
+    padding-inline: 2px 14cqw;
+    scroll-padding-inline: 2px;
+    scroll-snap-type: inline mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .columns::-webkit-scrollbar {
+    display: none;
+  }
+
+  .column {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+}
+
+@container task-board-view (max-width: 720px) {
+  .boardHeader > .detailMeta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@container task-board-view (max-width: 600px) {
+  .board {
+    padding-inline: 8px;
+  }
+}
+
+/* Viewport-specific mobile treatment: overlays occupy the dynamic viewport,
+   preserve notches/home indicators, and keep their action rows reachable. */
+@media (max-width: 768px) {
+  [data-dsh-taskboard-view] {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .entry,
+  .card,
+  .primaryButton,
+  .ghostButton,
+  .dangerButton,
+  .iconButton,
+  .linkButton,
+  .search,
+  .input,
+  .select,
+  .schedulePreset,
+  .scheduleToggle {
+    min-height: 44px;
+  }
+
+  .search,
+  .input,
+  .select,
+  .schedulePreset {
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+
+  .modalBackdrop {
+    align-items: stretch;
+    justify-content: stretch;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .modal,
+  .detail {
+    box-sizing: border-box;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .modal {
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-left: max(16px, env(safe-area-inset-left));
+  }
+
+  .modalFooter {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    background: var(--dsw-alias-bg-base);
+  }
+
+  .modalFooter > button {
+    flex: 1 1 120px;
+  }
+
+  .detailHeader {
+    flex-wrap: wrap;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
+
+  .detailTitle {
+    min-width: 0;
+  }
+
+  .detailBody {
+    overscroll-behavior-y: contain;
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
+
+  .detailFooter {
+    flex-wrap: wrap;
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
+
+  .detailFooter > button {
+    flex: 1 1 96px;
+  }
+
+  .detailFooter > .detailMeta {
+    flex: 1 0 100%;
+    margin-left: 0;
+    text-align: end;
+  }
+
+  .scheduleRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .schedulePreset {
+    width: 100%;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+ * Polish pass: complete interaction states (hover / active / focus-visible /
+ * disabled), unified 120ms motion, and reduced-motion fallback.
+ * Colors use the --dsw-alias-* design tokens, which adapt to light/dark/skins
+ * automatically, so every rule below is dark-safe by construction.
+ * --------------------------------------------------------------------------- */
+
+/* --- one themed focus-visible ring (approx 2px, 2px offset) --- */
+.entry:focus-visible,
+.cardBody:focus-visible,
+.cardSessionButton:focus-visible,
+.primaryButton:focus-visible,
+.ghostButton:focus-visible,
+.dangerButton:focus-visible,
+.iconButton:focus-visible,
+.linkButton:focus-visible,
+.search:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+.schedulePreset:focus-visible,
+.scheduleToggle input:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+/* --- unified 120ms motion across the board's interactive controls --- */
+.entry,
+.cardSessionButton,
+.primaryButton,
+.ghostButton,
+.dangerButton,
+.iconButton,
+.linkButton,
+.search,
+.input,
+.select,
+.schedulePreset,
+.scheduleToggle input {
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, outline-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+/* --- press (active) feedback --- */
+.cardBody:active {
+  box-shadow: var(--dsw-shadow-lv1);
+  transform: translateY(0);
+}
+
+.entry:active,
+.primaryButton:active:not(:disabled),
+.ghostButton:active:not(:disabled),
+.dangerButton:active:not(:disabled),
+.iconButton:active:not(:disabled),
+.linkButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* --- entry row (sidebar) states --- */
+.entry[data-active]:hover {
+  background: var(--dsw-specific-sidebar-nav-item-active);
+}
+
+/* --- guarded hover for the remaining icon/link buttons (defensive: never
+       disabled today, but a disabled element must not react to hover) --- */
+.iconButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.linkButton:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.iconButton:disabled,
+.linkButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* --- search box focus (border tint + themed ring above) --- */
+.search:focus,
+.select:focus,
+.schedulePreset:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+/* --- schedule toggle checkbox focus already covered by the shared ring;
+       keep the accent-color and size stable --- */
+.scheduleToggle input {
+  margin: 0;
+}
+
+/* --- reduced motion: strip transitions, stop the decorative spinner --- */
+@media (prefers-reduced-motion: reduce) {
+  .entry,
+  .card,
+  .primaryButton,
+  .ghostButton,
+  .dangerButton,
+  .iconButton,
+  .linkButton,
+  .search,
+  .input,
+  .select,
+  .schedulePreset,
+  .scheduleToggle input {
+    transition: none;
+  }
+
+  .cardSpinner {
+    animation: none;
+  }
+}
+
+/* --- project dimension (ledger v4) --------------------------------------------- */
+
+/* The 8-slot project palette: fixed hue tokens, one per project color.
+   Light theme rides the light set; the shell's dark theme (the
+   body[data-ds-dark-theme] attribute the dsh web app toggles) rides the
+   dark set — brighter, lower-saturation values that stay readable on a
+   dark canvas. The client only ever resolves `var(--dsh-tb-project-cN)`;
+   the token name itself lives in the ledger. */
+:root {
+  --dsh-tb-project-c1: #4a72c2;
+  --dsh-tb-project-c2: #3f9d63;
+  --dsh-tb-project-c3: #b4762a;
+  --dsh-tb-project-c4: #c0505f;
+  --dsh-tb-project-c5: #8a63c2;
+  --dsh-tb-project-c6: #2f8f8f;
+  --dsh-tb-project-c7: #b65496;
+  --dsh-tb-project-c8: #6b7280;
+}
+
+body[data-ds-dark-theme] {
+  --dsh-tb-project-c1: #7c9ff2;
+  --dsh-tb-project-c2: #6cc79a;
+  --dsh-tb-project-c3: #dfa45f;
+  --dsh-tb-project-c4: #e08a96;
+  --dsh-tb-project-c5: #b08de0;
+  --dsh-tb-project-c6: #5fb8b8;
+  --dsh-tb-project-c7: #e08ac9;
+  --dsh-tb-project-c8: #9aa2b1;
+}
+
+/* Project color dot (switcher rows, card chip, manager rows, table). */
+.projectDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dsh-tb-project-c1);
+}
+
+/* Toolbar switcher: the collapsed chip. */
+.projectSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 0 10px;
+  height: 30px;
+  border: 1px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 10%));
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.projectSwitchName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The dropdown panel. */
+.projectMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 70;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 10%));
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-base));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.projectMenuRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.projectMenuRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.projectMenuRow[data-selected] {
+  background: var(--dsw-alias-interactive-bg-active);
+  font-weight: 600;
+}
+
+.projectMenuName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectMenuTag {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.projectMenuCount {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.projectMenuFoot {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 10%));
+}
+
+/* Card meta chip (next to the #N serial badge). */
+.projectChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.projectChip .projectDot {
+  width: 6px;
+  height: 6px;
+}
+
+.projectChipName {
+  overflow: hidden;
+  max-width: 96px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Manager modal rows. */
+.projectItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 10%));
+}
+
+.projectItem:last-child {
+  border-bottom: none;
+}
+
+.projectItemMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.projectItemName {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectItemCount {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.projectItemActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The 8-swatch color picker (manager + create form). */
+.colorSwatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.colorSwatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--dsh-tb-project-c1);
+  cursor: pointer;
+}
+
+.colorSwatch:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4a72c2);
+  outline-offset: 1px;
+}
+
+.colorSwatch[data-on] {
+  border-color: var(--dsw-alias-label-primary);
+}
+
+/* Dashboard per-project table. */
+.projectTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.projectTable th {
+  padding: 4px 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.projectTable td {
+  padding: 5px 6px;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+}
+
+.projectTableRow {
+  cursor: pointer;
+}
+
+.projectTableRow:hover td {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.projectTableProject {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

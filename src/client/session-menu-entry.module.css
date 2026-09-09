@@ -1,0 +1,61 @@
+/* Injected session-row menu row ("add as task card").
+ *
+ * Cell metrics mirror the shell's menu cell one-to-one (ui-primitives
+ * Menu.module.css: min-h 40, r10, pad 10/8, 14/22 label, 8px gap, 16px icon
+ * slot, hover fill from the interaction tokens), so the injected row is
+ * visually indistinguishable from a native menu item. The hairline above
+ * the row (wrap::before) separates the plugin section from the shell's own
+ * rename/fork/archive items.
+ */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.wrap::before {
+  content: '';
+  height: 0.5px;
+  margin: 4px 2px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.itemIcon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

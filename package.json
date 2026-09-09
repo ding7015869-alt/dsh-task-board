@@ -1,0 +1,112 @@
+{
+  "name": "@linxin666/dsh-client-ui-task-board",
+  "description": "Task board plugin for the DeepSeek Harness (dsh) web GUI: a sidebar entry plus a multi-column kanban view with a host-authoritative ledger, real task execution through dsh sessions, cron scheduling, dependency gating, project grouping and board automation (concurrency cap, patrol, settle-driven continuation). Hot-pluggable through a profile bundle - no dsh source changes.",
+  "version": "0.4.0",
+  "type": "module",
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsdown",
+    "bundle": "tsdown",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-agent": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-api-gateway": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-api-remotes": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-connection": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-locale": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-store": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-commands": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-host-webserver": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-settings": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.3-alpha.2",
+    "@deepseek-ai/dsh-workspace": "0.1.3-alpha.2",
+    "@types/node": "^26.5.0",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "^18.3.5",
+    "jsdom": "^25.0.0",
+    "lightningcss": "1.32.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsdown": "0.22.2",
+    "typescript": "~5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.js.map",
+    "lib/**/*.d.ts",
+    "lib/**/*.d.ts.map",
+    "src",
+    "cordis.patch.yml"
+  ],
+  "license": "BSD-3-Clause",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "task-board",
+    "kanban",
+    "plugin",
+    "web-ui"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ding7015869-alt/dsh-task-board.git"
+  },
+  "homepage": "https://github.com/ding7015869-alt/dsh-task-board#readme",
+  "bugs": {
+    "url": "https://github.com/ding7015869-alt/dsh-task-board/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
