@@ -1,6 +1,6 @@
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway'
 import { nextRunAtMs } from './core/schedule.ts'
-import { reworkSessionId, reusableSessionId } from './core/session-reuse.ts'
+import { reworkSessionId, reusableSessionId, sourceSessionId } from './core/session-reuse.ts'
 import { reworkSection } from './core/rework.ts'
 import { HostTaskLedger, type OpenedRun, type OpenExecutionReference } from './host-ledger.ts'
 import { HostExecutionRunner, promptText, SessionLaunchError, type SessionCommandDispatcher, type SessionSummary, type TaskBoardWorkspaceRegistry } from './host-runner.ts'
@@ -309,7 +309,14 @@ export class TaskBoardHostService {
           promptOverride = `${promptText(opened.task)}\n\n${reworkSection(notes)}`
         }
       } else {
-        reuseSessionId = reusableSessionId(opened.task, this.idleSessionIds)
+        // The card's source session (the session-row "add as task card"
+        // entry) anchors execution ahead of the generic reuse rule: a card
+        // created from a session keeps running in that conversation while
+        // the roster confirms it idle. Without a source session (or with an
+        // unknown roster / busy session) the previous-run reuse rule or a
+        // fresh conversation applies as before.
+        reuseSessionId = sourceSessionId(opened.task, this.idleSessionIds)
+          ?? reusableSessionId(opened.task, this.idleSessionIds)
       }
       const options: { reuseSessionId?: string; promptOverride?: string } = {}
       if (reuseSessionId !== undefined) options.reuseSessionId = reuseSessionId

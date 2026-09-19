@@ -22,6 +22,7 @@ vi.hoisted(() => {
 import type { BoardController, ControllerSnapshot } from '../src/core/controller.ts'
 import { DEFAULT_PROJECT_ID } from '../src/core/projects.ts'
 import { createTask, type TaskRecord } from '../src/core/tasks.ts'
+import { parseActionEnvelope } from '../src/protocol.ts'
 import { NewTaskModal } from '../src/client/board/NewTaskModal.tsx'
 import { mountNewTaskOverlay } from '../src/client/session-new-task-overlay.tsx'
 import { requestNewTask } from '../src/client/new-task-request.ts'
@@ -93,6 +94,20 @@ describe('NewTaskModal session prefill (SSR mount)', () => {
     }))
     expect(firstInputValue(html)).toBe('COPY')
   })
+
+  it('shows the source-session binding line on the form (and none without a source)', () => {
+    const withSource = renderToString(createElement(NewTaskModal, {
+      controller: modalController(),
+      onClose: () => {},
+      sourceSession: { id: 's1', title: '写周报' },
+    }))
+    expect(withSource).toContain('来源会话 写周报')
+    const without = renderToString(createElement(NewTaskModal, {
+      controller: modalController(),
+      onClose: () => {},
+    }))
+    expect(without).not.toContain('来源会话')
+  })
 })
 
 describe('session-new-task-overlay (body-level request bus)', () => {
@@ -155,5 +170,59 @@ describe('session-new-task-overlay (body-level request bus)', () => {
     // Dispose removes the container itself.
     dispose()
     expect(document.querySelector('[data-dsh-taskboard-new-task-overlay]')).toBeNull()
+  })
+
+  it('carries the source-session binding into the create payload on submit', async () => {
+    const dom = stubBrowser()
+    const document = dom.window.document
+    const captured: unknown[] = []
+    const controller = {
+      ...modalController(),
+      createTaskConfirmed: async (input: unknown) => {
+        captured.push(input)
+        return createTask(input as Parameters<typeof createTask>[0], NOW, 'created-1')
+      },
+    } as unknown as BoardController
+    const dispose = mountNewTaskOverlay(controller)
+
+    requestNewTask({ sourceSession: { id: 's1', title: '写周报' } })
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    })
+    const dialog = document.querySelector('[role="dialog"]') as HTMLFormElement | null
+    // The footer buttons: cancel first, submit second.
+    const buttons = dialog!.querySelectorAll('button')
+    ;(buttons[1] as HTMLButtonElement).click()
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    })
+    dispose()
+    expect(captured).toHaveLength(1)
+    expect((captured[0] as { sourceSession?: { id: string; title?: string } }).sourceSession)
+      .toEqual({ id: 's1', title: '写周报' })
+  })
+})
+
+describe('create-task wire gate: sourceSession', () => {
+  const base = { title: 'T', description: '', prompt: 'p' }
+
+  it('accepts a create payload carrying the source-session pin', () => {
+    const envelope = parseActionEnvelope({
+      requestId: 'r1',
+      action: { kind: 'create', id: 't1', input: { ...base, sourceSession: { id: 'sess-1', title: '写周报' } } },
+    })
+    if (envelope?.action.kind !== 'create') throw new Error('create action was not accepted')
+    expect(envelope.action.input.sourceSession).toEqual({ id: 'sess-1', title: '写周报' })
+  })
+
+  it('rejects a malformed source-session pin but not a legacy payload', () => {
+    const reject = (input: Record<string, unknown>) =>
+      parseActionEnvelope({ requestId: 'r2', action: { kind: 'create', id: 't2', input: { ...base, sourceSession: input } } })
+    expect(reject({ id: '' })).toBeUndefined()
+    expect(reject({ id: '   ' })).toBeUndefined()
+    expect(reject({ id: 42 })).toBeUndefined()
+    expect(reject({ id: 's', title: 7 })).toBeUndefined()
+    expect(reject({ id: 's', stray: 1 })).toBeUndefined()
+    expect(parseActionEnvelope({ requestId: 'r3', action: { kind: 'create', id: 't3', input: base } })).toBeDefined()
   })
 })

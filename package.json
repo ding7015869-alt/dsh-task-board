@@ -1,7 +1,7 @@
 {
   "name": "@linxin666/dsh-client-ui-task-board",
-  "description": "Task board plugin for the DeepSeek Harness (dsh) web GUI: a sidebar entry plus a multi-column kanban view with a host-authoritative ledger, real task execution through dsh sessions, cron scheduling, dependency gating, project grouping and board automation (concurrency cap, patrol, settle-driven continuation). Hot-pluggable through a profile bundle - no dsh source changes.",
-  "version": "0.4.0",
+  "description": "Task board plugin for the DeepSeek Harness (dsh) web GUI: a sidebar entry plus a multi-column kanban view with a host-authoritative ledger, real task execution through dsh sessions, a reminder-app style schedule editor, dependency gating, project grouping, source-session binding and board automation (concurrency cap, patrol, settle-driven continuation). Hot-pluggable through a profile bundle - no dsh source changes.",
+  "version": "0.4.2",
   "type": "module",
   "engines": {
     "node": "^22.19 || >=24"

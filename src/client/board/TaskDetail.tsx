@@ -12,12 +12,12 @@ import { DEFAULT_PROJECT_ID, type ProjectRecord } from '../../core/projects.ts'
 import { canEditTaskContent } from '../../core/use-cases/task-update.ts'
 import { requiresPermissionConfirmation } from '../../core/handover.ts'
 import { t, type TaskBoardKey } from '../locales.ts'
-import { SCHEDULE_PRESETS } from '../schedule-presets.ts'
 import css from '../board.module.css'
 import { ConfirmDialog } from './ConfirmDialog.tsx'
 import { EditTaskModal } from './EditTaskModal.tsx'
 import { NewTaskModal } from './NewTaskModal.tsx'
 import { ReworkModal } from './ReworkModal.tsx'
+import { ScheduleEditor } from './ScheduleEditor.tsx'
 import { defaultModelName, groupModelOptions, modelOptionLabel, reasoningEffortLabel, reasoningEffortOptionsFor } from './model-options.ts'
 import { formatHostTimestamp, formatTime } from './TaskCard.tsx'
 import { STATUS_KEY } from './status-key.ts'
@@ -244,7 +244,7 @@ function ExecutionSettingsSection({ controller, task, pending }: { controller: B
   )
 }
 
-/** The scheduled-runs editor: enable toggle, cron input + presets, next-run info. */
+/** The scheduled-runs editor: enable toggle, the structured schedule editor, next/last run info. */
 function ScheduleSection({ controller, task, pending }: { controller: BoardController; task: TaskRecord; pending: boolean }) {
   const schedule = task.schedule
   const [cron, setCron] = useState(schedule?.cron ?? '0 9 * * *')
@@ -264,16 +264,16 @@ function ScheduleSection({ controller, task, pending }: { controller: BoardContr
     setError(undefined)
   }, [task.id, schedule?.enabled, schedule?.cron, schedule?.nextRunAt, schedule?.lastTriggeredAt])
 
-  /** Validate + persist the current cron text (Enter or blur). */
-  const saveCron = (value: string): void => {
+  /** Persist a confirmed cron (spec-tab change or custom-text commit). */
+  const commitCron = (value: string): void => {
     const trimmed = value.trim()
-    setCron(trimmed)
     if (trimmed === '' || !isValidCron(trimmed)) {
       setError(t('detail.schedule.invalid'))
       return
     }
+    setCron(trimmed)
     setError(undefined)
-    controller.setSchedule(task.id, { cron: trimmed })
+    if (trimmed !== schedule?.cron) controller.setSchedule(task.id, { cron: trimmed })
   }
 
   /** Arm/disarm the schedule (arming first persists the edited cron). */
@@ -289,13 +289,6 @@ function ScheduleSection({ controller, task, pending }: { controller: BoardContr
       ...(next && trimmed !== schedule?.cron ? { cron: trimmed } : {}),
     })
     if (submitted && !controller.isHostBacked()) setEnabled(next)
-  }
-
-  const applyPreset = (preset: string): void => {
-    if (preset === '') return
-    setCron(preset)
-    setError(undefined)
-    controller.setSchedule(task.id, { cron: preset })
   }
 
   const nextLabel = !enabled || nextRunAt === undefined
@@ -317,31 +310,12 @@ function ScheduleSection({ controller, task, pending }: { controller: BoardContr
         />
         <span>{t('detail.schedule.enable')}</span>
       </label>
-      <div className={css.scheduleRow}>
-        <input
-          className={`${css.input} ${css.scheduleInput}${error !== undefined ? ` ${css.scheduleInputInvalid}` : ''}`}
-          value={cron}
-          disabled={pending}
-          placeholder="0 9 * * *"
-          spellCheck={false}
-          aria-label={t('detail.schedule.cron')}
-          onChange={event => { setCron(event.target.value); setError(undefined) }}
-          onBlur={() => { saveCron(cron) }}
-          onKeyDown={event => { if (event.key === 'Enter') saveCron(cron) }}
-        />
-        <select
-          className={css.schedulePreset}
-          value=""
-          disabled={pending}
-          aria-label={t('detail.schedule.presets')}
-          onChange={event => { applyPreset(event.target.value) }}
-        >
-          <option value="">{t('detail.schedule.presets')}…</option>
-          {SCHEDULE_PRESETS.map(preset => (
-            <option key={preset.cron} value={preset.cron}>{t(preset.label)}</option>
-          ))}
-        </select>
-      </div>
+      <ScheduleEditor
+        cron={cron}
+        onCronChange={commitCron}
+        disabled={pending}
+        timeZone={timeZone}
+      />
       {error !== undefined && <p className={css.formError}>{error}</p>}
       <p className={css.scheduleMeta}>
         {t('detail.schedule.nextRun')} {nextLabel}
@@ -500,6 +474,23 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
             <h4>{t('detail.description')}</h4>
             <p className={css.detailText}>{current.description !== '' ? current.description : '—'}</p>
           </section>
+
+          {current.sourceSession !== undefined && (
+            <section className={css.detailSection} data-dsh-part="source-session">
+              <h4>{t('detail.sourceSessionTitle')}</h4>
+              <p className={css.detailText}>
+                {current.sourceSession.title ?? current.sourceSession.id}{' '}
+                <button
+                  type="button"
+                  className={css.linkButton}
+                  title={current.sourceSession.id}
+                  onClick={() => { controller.openSession(current.sourceSession?.id ?? '') }}
+                >
+                  {t('detail.viewSession')} ⌁
+                </button>
+              </p>
+            </section>
+          )}
 
           {current.freeze !== undefined && (
             <section className={css.detailSection} data-dsh-part="freeze">

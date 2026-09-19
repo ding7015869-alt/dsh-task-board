@@ -2,8 +2,9 @@
  * Claimed-session predicate (taskClaimedSessionIds): which sessions are
  * "task cards" for the session-row menu's "add as task card" visibility —
  * every NON-archived task claims its newest execution session, all its
- * retained execution sessions, and its freeze provenance session; archived
- * tasks release their sessions.
+ * retained execution sessions, its source session (the card it was minted
+ * from), and its freeze provenance session; archived tasks release their
+ * sessions.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -62,6 +63,16 @@ describe('taskClaimedSessionIds', () => {
     expect(claimed.has('s1')).toBe(false)
     expect(claimed.has('s2')).toBe(false)
     expect(claimed.has('s3')).toBe(true)
+  })
+
+  it('claims the source session of a card even before its first run, and releases it when archived', () => {
+    const claimed = taskClaimedSessionIds([
+      task('t1', { sourceSession: { id: 'src-1', title: '写周报' } }),
+      task('t2', { status: 'done', archivedAt: NOW, sourceSession: { id: 'src-2' } }),
+    ])
+    expect(claimed.has('src-1')).toBe(true)
+    expect(claimed.has('src-2')).toBe(false)
+    expect(claimed.size).toBe(1)
   })
 
   it('returns an empty set for a board with no session-bearing tasks', () => {

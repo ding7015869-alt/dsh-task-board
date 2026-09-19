@@ -65,6 +65,28 @@ describe('createTask', () => {
     )
     expect(task.permission).toBeUndefined()
   })
+
+  it('persists the source-session pin (trimmed, blank title collapses) and drops a malformed one', () => {
+    const task = createTask(
+      { title: 'x', description: '', prompt: '', sourceSession: { id: '  sess-9  ', title: '  写周报  ' } },
+      NOW,
+      'task-6',
+    )
+    expect(task.sourceSession).toEqual({ id: 'sess-9', title: '写周报' })
+    const noTitle = createTask(
+      { title: 'x', description: '', prompt: '', sourceSession: { id: 'sess-10', title: '   ' } },
+      NOW,
+      'task-7',
+    )
+    expect(noTitle.sourceSession).toEqual({ id: 'sess-10' })
+    const malformed = createTask(
+      { title: 'x', description: '', prompt: '', sourceSession: { id: '   ' } as never },
+      NOW,
+      'task-8',
+    )
+    expect(malformed.sourceSession).toBeUndefined()
+    expect(createTask({ title: 'x', description: '', prompt: '' }, NOW, 'task-9').sourceSession).toBeUndefined()
+  })
 })
 
 describe('status transitions', () => {

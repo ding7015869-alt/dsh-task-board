@@ -78,13 +78,17 @@ declare module '@deepseek-ai/cordis' {
 
 /**
  * Required services (fiber inject waiting — the runtime must be up first).
- * The generated remote faces are probed at use time instead of injected:
- * `remote.agentPresets` only registers on 0.1.2-alpha.2 hosts (the
- * api-remotes contribution), so a hard wait would pend the entry forever
- * on hosts below that cohort, which serve the same roster through the
- * connection RPC face.
+ * The generated api-remotes faces (`remote.session`, `remote.agentPresets`)
+ * are injected, not merely probed: the cordis traceable proxy only forwards
+ * a `remote.<ns>` property when the fiber's inject list declared
+ * `remote.<ns>` (an undeclared property throws "cannot get property ...
+ * without inject", so the roster read would silently fall through to the
+ * legacy connection face forever). Both faces mount in one sequential
+ * api-remotes loop (agentPresets before session), so a host that serves
+ * one serves both; the legacy connection RPC face stays as a probe-time
+ * fallback only.
  */
-export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote', 'remote.session']
+export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote', 'remote.session', 'remote.agentPresets']
 
 /** One agent-preset row the mode picker consumes (either face's wire shape). */
 interface PresetRosterRow {
@@ -99,10 +103,12 @@ interface PresetRosterRow {
 /**
  * Read the agent-preset roster through whichever face the running host
  * serves: the generated api-remotes face (`remote.agentPresets`,
- * 0.1.2-alpha.2) or the connection RPC face
+ * 0.1.2-alpha.2 and later — injected on this fiber, so the property chain
+ * resolves whenever this apply runs) or the connection RPC face
  * (`connection.api.agentPresets`, hosts below that cohort). Answers
- * undefined when the host serves neither, so the caller leaves the picker
- * options untouched instead of erroring.
+ * undefined when neither face is mounted — the caller then retries the
+ * read on the same bounded cadence as the model-catalog feed instead of
+ * leaving the mode picker on the deployment default.
  */
 async function readPresetRoster(
   ctx: ClientContext,
@@ -234,22 +240,56 @@ export function apply(ctx: ClientContext): void {
     }
     pushWorkspaceOptions()
     disposers.push(workspaces.list.subscribe(pushWorkspaceOptions))
-    const pushPresetOptions = async (): Promise<void> => {
+    // The preset roster face is injected on this fiber (see the inject list
+    // above), so the `remote.agentPresets` property chain resolves by the
+    // time this apply runs. The bounded retry below covers transient
+    // `list()` RPC failures (the same cadence the model-catalog feed uses);
+    // an absent roster on a transitional host without either face is
+    // retried the same way instead of leaving the mode picker on the
+    // deployment default.
+    const PRESET_ROSTER_ATTEMPTS = 3
+    const pushPresetOptions = async (attempt = 0): Promise<void> => {
       try {
         const roster = await readPresetRoster(ctx, remote)
-        if (roster === undefined || !roster.ok) return
-        controller.setExecutionOptions({
-          presets: roster.presets.map(preset => ({
-            id: preset.id,
-            name: preset.name,
-            description: preset.description,
-            broken: preset.broken,
-            isDefault: preset.isDefault,
-          })),
-        })
+        if (roster !== undefined && roster.ok) {
+          console.info(`[dsh-task-board] preset roster: ${roster.presets.length} presets`)
+          controller.setExecutionOptions({
+            presets: roster.presets.map(preset => ({
+              id: preset.id,
+              name: preset.name,
+              description: preset.description,
+              broken: preset.broken,
+              isDefault: preset.isDefault,
+            })),
+          })
+          return
+        }
+        if (attempt < PRESET_ROSTER_ATTEMPTS - 1) {
+          console.info(
+            `[dsh-task-board] preset roster unavailable ${roster === undefined ? '(no roster face)' : '(read failed)'}; attempt ${attempt + 1}/${PRESET_ROSTER_ATTEMPTS}, retrying`,
+          )
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          await pushPresetOptions(attempt + 1)
+          return
+        }
+        if (roster === undefined) {
+          console.warn(
+            `[dsh-task-board] preset roster faces not available after ${PRESET_ROSTER_ATTEMPTS} attempts; the mode picker keeps the deployment default row`,
+          )
+        } else {
+          console.error(
+            `[dsh-task-board] agent preset roster read failed after ${PRESET_ROSTER_ATTEMPTS} attempts`,
+          )
+        }
       } catch (error) {
-        // A failed roster read leaves the previous options in place; the
-        // picker stays usable and the next reconnect retries the read.
+        // A failed roster read leaves the previous options in place. Bounded
+        // retry first (transient remote-face failure, same cadence as the
+        // model catalog); after it, the next reconnect retries the read.
+        if (attempt < PRESET_ROSTER_ATTEMPTS - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          await pushPresetOptions(attempt + 1)
+          return
+        }
         console.error('[dsh-task-board] agent preset roster read failed', error)
       }
     }
@@ -349,8 +389,12 @@ export function apply(ctx: ClientContext): void {
         console.error('[dsh-task-board] model options read failed', error)
       }
     }
+    void pushPresetOptions()
     void pushModelOptions()
-    disposers.push(ctx.on('connection/reset', () => { void pushModelOptions() }))
+    disposers.push(ctx.on('connection/reset', () => {
+      void pushPresetOptions()
+      void pushModelOptions()
+    }))
     try {
       disposers.push(mountSidebarEntry(controller, ctx.locale))
       disposers.push(mountBoard(controller, ctx.locale))

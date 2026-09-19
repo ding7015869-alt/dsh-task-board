@@ -33,10 +33,12 @@ pnpm test           # vitest run
 - 定时调度在宿主侧：`src/host-service.ts` 每 30s tick（`SCHEDULE_TICK_MS`），
   到期 cron 经 `HostTaskLedger.openScheduled` 开执行；触发前先把「下次运行」滚到
   下一个匹配点，同 tick 不双发。**错过的触发点不补跑**（`skipMissed`）。
+  GUI 标签页不再是调度器——只需 DSH 宿主进程在跑，浏览器关掉也能到点执行。
 - 真实执行走宿主会话机制（`src/host-runner.ts`）：接入一个真实 session
   （blank-session 复用或 `session.create`）、重命名为任务标题、以
   `session.prompt` 发任务提示，再监视会话直到本轮 settle。**执行消耗 API
   额度**。
+- 运行时人脸以结构接口注入，测试直接驱动 tick，无定时器。
 
 ## 看板自动化（并发上限 + 定时巡逻 + settle 驱动续跑）
 
@@ -46,13 +48,18 @@ pnpm test           # vitest run
   1000）：宿主侧定时器经 `HostTaskLedger.openPatrolRun` 把新任务派进空闲槽位。
 - **settle 驱动自动续跑**（`dispatchContinue`，默认常开，与巡逻开关无关）：
   父任务 settle 后宿主立即把刚变成可执行的 todo **子任务**（`parentIds` 非空）
-  派进空闲槽位（initiator `task-board-continue`）。独立新任务绝不因创建而开跑；
-  失败的父任务不解阻子任务。
+  派进空闲槽位（initiator `task-board-continue`）。触发点：`reconcileExecutions`
+  的 settle 批次、`launch` 失败回写、`apply` 任意动作后（父任务手动置 done /
+  权限确认后即时续跑）、以及进程重启后的首个调度 tick（`tickSchedule` 的
+  `recovered` 分支）补齐宕机间隙。**范围仅限有父任务的子任务**——新建的独立
+  todo 仍归巡逻（opt-in）或手动 run，创建任务绝不自动开跑。被父任务「结清」
+  的语义 = 父 `status === 'done'`——**失败的父任务不解阻子任务**。
 - 可执行判定 `checkExecutable`（`src/core/executability.ts`，返回有序 blocker
   列表）：未归档 → 状态在 `PATROL_STATUSES`（`['todo']`，待规划停放池绝不被拾起）
   → 自身无未结执行 → 全部父任务已结清 → 高于会话默认的权限已被确认（任何派发器
   都**绝不自动确认**）→ 看板有空闲槽位。每个派发器先轻滤，账本在 open 时刻复检
-  全量判定。已启用 cron 的任务归调度器所有，巡逻与续跑排除。
+  全量判定——任务只在**全部**条件同时成立时启动。已启用 cron 的任务归调度器
+  所有，巡逻与续跑预滤排除（open 时刻再查一次 `task.schedule?.enabled`）。
 
 ## 数据模型
 
@@ -64,7 +71,12 @@ pnpm test           # vitest run
   改指默认项目（`serial` 与执行史不动）。项目筛选不进 `checkExecutable` /
   巡逻 / 续跑门控。
 - 任务可钉住执行目标（`workspaceId` / `mode` / `permission`，均可选）：应用不了
-  的目标在发 prompt **之前**失败。
+  的目标在发 prompt **之前**失败。旧数据无这些字段，靠 store 规范化兜底。
+- **来源会话绑定**：会话行「添加为任务卡」建出的卡在 `TaskRecord.sourceSession`
+  上钉住来源会话（`{ id, title? }`）。执行时 `src/core/session-reuse.ts` 的
+  `sourceSessionId` 优先于 `reusableSessionId`（来源会话仍在 roster 且空闲才
+  复用它，否则 fail-closed 开新会话）；`taskClaimedSessionIds` 把来源会话计入
+  占用集（该会话的菜单项在卡片创建后即消失，归档后回归）；import 不携带该绑定。
 - 协议与动作在 `src/protocol.ts`（`exactKeys` 严格校验 + 64KB 上限 + 请求去重），
   账本动作在 `src/host-ledger.ts`，纯 use-case 在 `src/core/use-cases/`。
 

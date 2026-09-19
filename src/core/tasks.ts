@@ -117,6 +117,20 @@ export interface TaskFreeze extends FreezeSnapshot {
   frozenBy?: string
 }
 
+/**
+ * The DSH session a card was created from (the session-row "add as task card"
+ * entry): the card is BOUND to that session — its executions continue inside
+ * it while it is idle and still present, and the card's session link points
+ * at it even before the first run. The title is the session's title at
+ * creation time (display only; live titles may drift later).
+ */
+export interface TaskSourceSession {
+  /** The source session id (the DSH session the card was minted from). */
+  id: string
+  /** The session title at creation time; absent when it was blank. */
+  title?: string
+}
+
 /** One task on the board. */
 export interface TaskRecord {
   /** Stable task id (uuid). */
@@ -184,6 +198,15 @@ export interface TaskRecord {
    * {@link reusableSessionId}).
    */
   reuseSession?: boolean
+  /**
+   * The source session this card was created from (session-row "add as task
+   * card" entry): the card is bound to that conversation — executions
+   * continue inside it while it is idle and still present (the launcher's
+   * source-session rule, see core/session-reuse.ts), and the card's session
+   * button jumps to it even before the first run. Absent on cards created
+   * without a source session (the board's own new-task button).
+   */
+  sourceSession?: TaskSourceSession
   /**
    * Frozen context snapshot for a continuation card; absent on plain tasks.
    * Sanitized before it enters the ledger (redaction, slash-command taint,
@@ -276,6 +299,12 @@ export interface NewTaskInput {
   /** Reuse the previous execution's session for later runs (issue #1419). */
   reuseSession?: boolean
   /**
+   * The source session the card is created from (session-row "add as task
+   * card" entry): binds the new card to that conversation; blank/absent
+   * collapses to undefined at normalization.
+   */
+  sourceSession?: TaskSourceSession
+  /**
    * Optional scheduled-run rule requested at creation time (the new-task
    * dialog): an enable flag plus a 5-field cron expression. The create use
    * case arms it only when enabled and the expression is valid.
@@ -337,6 +366,21 @@ export function canMoveManually(from: TaskStatus, to: TaskStatus): boolean {
 export function normalizeTargetId(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
   return trimmed === undefined || trimmed === '' ? undefined : trimmed
+}
+
+/**
+ * Normalize a source-session pin (create input, wire payload, or a persisted
+ * row): a non-empty trimmed id is required, the title is trimmed and dropped
+ * when blank. Malformed input yields undefined — the card simply has no
+ * source-session link; the task row itself is never dropped for this field.
+ */
+export function normalizeSourceSession(value: unknown): TaskSourceSession | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const source = value as Record<string, unknown>
+  const id = typeof source.id === 'string' ? source.id.trim() : ''
+  if (id === '') return undefined
+  const title = typeof source.title === 'string' ? source.title.trim() : ''
+  return { id, ...(title === '' ? {} : { title }) }
 }
 
 /**
@@ -436,6 +480,7 @@ export function createTask(input: NewTaskInput, now: number, id: string): TaskRe
     reasoningEffort: normalizeTargetId(input.reasoningEffort),
     parentIds: normalizeParentIds(input.parentIds, id),
     reuseSession: input.reuseSession === true ? true : undefined,
+    sourceSession: normalizeSourceSession(input.sourceSession),
     projectId: normalizeTargetId(input.projectId),
     ...(input.freeze === undefined ? {} : { freeze: freezeOf(input.freeze, now) }),
     ...(input.handover === undefined ? {} : { handover: { ...input.handover, bundledAt: now } }),
@@ -556,7 +601,8 @@ export function latestSessionIdOf(task: TaskRecord): string | undefined {
 /**
  * The set of session ids currently claimed as task-card sessions: every
  * NON-archived task claims its newest execution session (the one the card's
- * session button points at), all retained execution sessions, and its freeze
+ * session button points at), all retained execution sessions, its source
+ * session (the card it was minted from, session-row entry), and its freeze
  * snapshot's provenance session. Archived tasks release their sessions, so a
  * new card may claim the same session again. Drives the session-row menu's
  * "add as task card" visibility (client/session-menu-entry.ts).
@@ -570,6 +616,8 @@ export function taskClaimedSessionIds(tasks: readonly TaskRecord[]): ReadonlySet
     for (const execution of task.executions) {
       if (execution.sessionId !== undefined) claimed.add(execution.sessionId)
     }
+    const source = task.sourceSession?.id
+    if (source !== undefined) claimed.add(source)
     const frozenBy = task.freeze?.frozenBy
     if (frozenBy !== undefined) claimed.add(frozenBy)
   }

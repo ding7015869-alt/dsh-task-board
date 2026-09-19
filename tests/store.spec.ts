@@ -195,6 +195,35 @@ describe('parseLedger', () => {
     expect(repaired[0].mode).toBeUndefined()
     expect(repaired[0].permission).toBeUndefined()
   })
+
+  it('round-trips the source-session pin and repairs broken ones without dropping the row', () => {
+    const withSource = createTask(
+      { title: 'from a session', description: '', prompt: '', sourceSession: { id: 'sess-1', title: '写周报' } },
+      1,
+      't-1',
+    )
+    const parsed = parseLedger(JSON.stringify([withSource]))
+    expect(parsed[0].sourceSession).toEqual({ id: 'sess-1', title: '写周报' })
+
+    // A malformed pin clears the field alone (repair policy, mirrors the
+    // execution targets): blank id, blank title, and wrong shapes all keep
+    // the task row.
+    const repaired = parseLedger(JSON.stringify([{
+      ...withSource,
+      sourceSession: { id: '   ', title: 'x' },
+    }]))
+    expect(repaired).toHaveLength(1)
+    expect(repaired[0].sourceSession).toBeUndefined()
+
+    const trimmed = parseLedger(JSON.stringify([{
+      ...withSource,
+      sourceSession: { id: ' sess-2 ', title: '   ' },
+    }]))
+    expect(trimmed[0].sourceSession).toEqual({ id: 'sess-2' })
+
+    const legacy = parseLedger(JSON.stringify([createTask({ title: 'no source', description: '', prompt: '' }, 1, 't-2')]))
+    expect(legacy[0].sourceSession).toBeUndefined()
+  })
 })
 
 describe('isTaskRecord', () => {

@@ -45,6 +45,30 @@ export function reusableSessionId(
 }
 
 /**
+ * Pick the card's SOURCE session for a new execution (the session-row "add as
+ * task card" entry), or undefined to fall through to the reuse rule or a
+ * fresh conversation. A card created from a session is bound to that
+ * conversation: the source anchors every run, ahead of the previous-run
+ * session. The fail-closed conditions mirror {@link reusableSessionId}: the
+ * roster must be known and the source session present AND idle — minting a
+ * fresh conversation is always safe, prompting into a session we cannot see
+ * is not.
+ * @param task - the task about to run.
+ * @param idleSessionIds - ids the last roster saw as present and not running;
+ *   undefined when that roster is unknown.
+ * @returns the source session id to continue in, or undefined when the card
+ * has no source session or the session is not confirmed idle.
+ */
+export function sourceSessionId(
+  task: TaskRecord,
+  idleSessionIds: ReadonlySet<string> | undefined,
+): string | undefined {
+  const source = task.sourceSession?.id
+  if (source === undefined || idleSessionIds === undefined) return undefined
+  return idleSessionIds.has(source) ? source : undefined
+}
+
+/**
  * Pick the session a rework execution continues in (the rework/reject flow),
  * or undefined to mint a fresh conversation carrying the full task prompt
  * plus the modification notes. The card's requirement: a modification round

@@ -4,15 +4,15 @@
  */
 import { useEffect, useState } from 'react'
 import type { BoardController } from '../../core/controller.ts'
-import { isValidCron, nextRunAtMs } from '../../core/schedule.ts'
+import { isValidCron } from '../../core/schedule.ts'
 import { parseFreezeRequest } from '../../core/freeze-snapshot.ts'
 import { TASK_PERMISSIONS, type TaskPermission, type TaskRecord } from '../../core/tasks.ts'
 import { DEFAULT_PROJECT_ID, type ProjectRecord } from '../../core/projects.ts'
 import { t, type TaskBoardKey } from '../locales.ts'
-import { SCHEDULE_PRESETS } from '../schedule-presets.ts'
 import { readLastUsed, writeLastUsed, type LastUsedSettings } from '../last-used.ts'
 import { defaultModelName, groupModelOptions, modelOptionLabel, reasoningEffortLabel, reasoningEffortOptionsFor } from './model-options.ts'
 import { ModalShell, TaskContentFields } from './TaskForm.tsx'
+import { ScheduleEditor } from './ScheduleEditor.tsx'
 import css from '../board.module.css'
 
 export interface NewTaskModalProps {
@@ -33,8 +33,11 @@ export interface NewTaskModalProps {
   defaultProjectId?: string
   /**
    * The session this card is created from (session-row "add as task card"
-   * entry): pre-fills the title with the session's title. Ignored while
-   * duplicating (`initialTask` wins) — the duplicate flow owns the form.
+   * entry): pre-fills the title with the session's title and BINDS the new
+   * card to that session — executions continue inside it while it is idle
+   * and still present (Host launcher's source-session rule). The binding is
+   * carried into the create payload; ignored while duplicating
+   * (`initialTask` wins) — the duplicate flow owns the form.
    */
   sourceSession?: { id: string; title: string }
 }
@@ -122,6 +125,11 @@ export function NewTaskModal({ controller, onClose, initialTask, onDuplicateSucc
     // 推理强度只随模型选择生效（select-model 契约要求 provider+model）：
     // 用户在「宿主默认」路由上选了强度时，自动钉住默认路由使强度可落地。
     const effectiveModel = model !== '' ? model : (effort !== '' ? options.defaultModel ?? '' : '')
+    // 源会话绑定（会话菜单「添加为任务卡」）：新卡与该会话绑定，执行在其
+    // 空闲且仍在场时于其中继续；复制流（initialTask）不携带绑定。
+    const sourceSessionBinding = !isDuplicate && sourceSession !== undefined
+      ? { sourceSession: { id: sourceSession.id, title: sourceSession.title } }
+      : {}
     setPending(true)
     const task = await controller.createTaskConfirmed({
       title,
@@ -137,6 +145,7 @@ export function NewTaskModal({ controller, onClose, initialTask, onDuplicateSucc
       ...(parentIds.length > 0 ? { parentIds } : {}),
       ...(projects.length > 0 ? { projectId } : {}),
       ...(reuseSession ? { reuseSession: true } : {}),
+      ...sourceSessionBinding,
       schedule: scheduleEnabled ? { enabled: true, cron: scheduleCron.trim() } : undefined,
     })
     if (task === undefined) {
@@ -165,11 +174,6 @@ export function NewTaskModal({ controller, onClose, initialTask, onDuplicateSucc
     onClose()
   }
 
-  /** Next-run preview for a valid armed cron (creation-time only). */
-  const scheduleNextRun = scheduleEnabled && scheduleCron.trim() !== '' && isValidCron(scheduleCron)
-    ? nextRunAtMs(scheduleCron, Date.now())
-    : undefined
-
   const modalTitle = isDuplicate ? t('new.duplicateTitle') : t('board.new')
 
   // 当前有效路由（钉住的模型，未钉住时落到宿主默认路由）声明的强度档位；
@@ -187,6 +191,11 @@ export function NewTaskModal({ controller, onClose, initialTask, onDuplicateSucc
       onSubmit={() => { void submit() }}
       onClose={onClose}
     >
+      {sourceSession !== undefined && !isDuplicate && (
+        <p className={css.scheduleMeta}>
+          {t('new.sourceSession', { session: sourceSession.title })}
+        </p>
+      )}
       <TaskContentFields
         title={title}
         description={description}
@@ -374,37 +383,13 @@ export function NewTaskModal({ controller, onClose, initialTask, onDuplicateSucc
           </label>
           {scheduleEnabled && (
             <>
-              <div className={css.scheduleRow}>
-                <input
-                  className={`${css.input} ${css.scheduleInput}${scheduleError !== undefined ? ` ${css.scheduleInputInvalid}` : ''}`}
-                  value={scheduleCron}
-                  placeholder="0 9 * * *"
-                  spellCheck={false}
-                  aria-label={t('detail.schedule.cron')}
-                  onChange={event => { setScheduleCron(event.target.value); setScheduleError(undefined) }}
-                />
-                <select
-                  className={css.schedulePreset}
-                  value=""
-                  aria-label={t('detail.schedule.presets')}
-                  onChange={event => {
-                    if (event.target.value === '') return
-                    setScheduleCron(event.target.value)
-                    setScheduleError(undefined)
-                  }}
-                >
-                  <option value="">{t('detail.schedule.presets')}…</option>
-                  {SCHEDULE_PRESETS.map(preset => (
-                    <option key={preset.cron} value={preset.cron}>{t(preset.label)}</option>
-                  ))}
-                </select>
-              </div>
+              <ScheduleEditor
+                cron={scheduleCron}
+                onCronChange={value => { setScheduleCron(value); setScheduleError(undefined) }}
+                showPreview
+                timeZone={controller.getSnapshot().host?.scheduler.timeZone}
+              />
               {scheduleError !== undefined && <p className={css.formError}>{scheduleError}</p>}
-              {scheduleError === undefined && scheduleNextRun !== undefined && (
-                <p className={css.scheduleMeta}>
-                  {t('detail.schedule.nextRun')} {new Date(scheduleNextRun).toLocaleString()}
-                </p>
-              )}
             </>
           )}
         </section>

@@ -190,6 +190,55 @@ describe('task detail project row (SSR mount)', () => {
   })
 })
 
+describe('source-session display (SSR mount)', () => {
+  /** A todo task bound to a source session, no runs yet. */
+  function boundTask(): TaskRecord {
+    const task = createTask({ title: 't', description: '', prompt: '', projectId: 'p1' }, NOW, 'tc')
+    return { ...task, sourceSession: { id: 'session-x', title: '测试会话' } }
+  }
+
+  it('labels the bound session on the card chip and in the detail section', () => {
+    const task = boundTask()
+    const card = renderToString(createElement(TaskCard, {
+      task,
+      pending: false,
+      onClick: () => {},
+      onOpenSession: () => {},
+      gateCount: 0,
+      projects,
+    }))
+    // The chip carries a visible "会话" prefix (the session title alone
+    // can equal the card title and vanish into the meta row).
+    expect(card).toContain('会话 测试会话')
+    expect(card).toContain('来源会话 测试会话')
+    const detail = renderToString(createElement(TaskDetail, {
+      controller: detailController(task),
+      task,
+    }))
+    expect(detail).toContain('来源会话')
+    expect(detail).toContain('测试会话')
+    expect(detail).toContain('查看会话')
+  })
+
+  it('shows no source-session trace without a binding', () => {
+    const bare = createTask({ title: 'b', description: '', prompt: '' }, NOW, 'td')
+    const card = renderToString(createElement(TaskCard, {
+      task: bare,
+      pending: false,
+      onClick: () => {},
+      onOpenSession: () => {},
+      gateCount: 0,
+      projects,
+    }))
+    expect(card).not.toContain('会话')
+    const detail = renderToString(createElement(TaskDetail, {
+      controller: detailController(ownedTask()),
+      task: ownedTask(),
+    }))
+    expect(detail).not.toContain('来源会话')
+  })
+})
+
 describe('dashboard project dimension (SSR mount)', () => {
   it('adds the per-project table in "all" scope, row values included', () => {
     const tasks = [ownedTask()]

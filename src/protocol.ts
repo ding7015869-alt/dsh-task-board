@@ -262,11 +262,20 @@ function handoverPayload(value: unknown): TaskHandoverInput | undefined {
 
 function createInput(value: unknown): value is NewTaskInput {
   const input = record(value)
-  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule', 'freeze', 'handover', 'model', 'reasoningEffort', 'reuseSession', 'parentIds', 'projectId'])) return false
+  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule', 'freeze', 'handover', 'model', 'reasoningEffort', 'reuseSession', 'sourceSession', 'parentIds', 'projectId'])) return false
   if (typeof input.title !== 'string' || typeof input.description !== 'string' || typeof input.prompt !== 'string') return false
   if (!optionalString(input.workspaceId) || !optionalString(input.mode) || !optionalString(input.model) || !optionalString(input.reasoningEffort) || !optionalString(input.projectId)) return false
   if (input.parentIds !== undefined && (!Array.isArray(input.parentIds) || input.parentIds.some(item => typeof item !== 'string'))) return false
   if (input.reuseSession !== undefined && typeof input.reuseSession !== 'boolean') return false
+  // The source-session pin (session-row entry): exact keys, a non-empty
+  // trimmed id, and an optional title string. Sanitization (trim, blank
+  // title collapse) happens at createTask; a malformed shape rejects here.
+  if (input.sourceSession !== undefined) {
+    const source = record(input.sourceSession)
+    if (source === undefined || !exactKeys(source, ['id', 'title'])) return false
+    if (typeof source.id !== 'string' || source.id.trim() === '') return false
+    if (source.title !== undefined && typeof source.title !== 'string') return false
+  }
   if (input.permission !== undefined && !isTaskPermission(input.permission)) return false
   if (input.freeze !== undefined && freezePayload(input.freeze) === undefined) return false
   if (input.handover !== undefined && handoverPayload(input.handover) === undefined) return false

@@ -15,7 +15,7 @@ import {
 } from '../src/core/tasks.ts'
 import { parseLedger } from '../src/core/store.ts'
 import { REWORK_NOTE_MAX_LENGTH, reworkSection } from '../src/core/rework.ts'
-import { reworkSessionId, reusableSessionId } from '../src/core/session-reuse.ts'
+import { reworkSessionId, reusableSessionId, sourceSessionId } from '../src/core/session-reuse.ts'
 import { parseActionEnvelope } from '../src/protocol.ts'
 import { HostTaskLedger } from '../src/host-ledger.ts'
 
@@ -144,6 +144,36 @@ describe('reworkSessionId', () => {
     expect(reworkSessionId(makeTask('r', { status: 'done' }))).toBeUndefined()
     expect(reworkSessionId(settledTask('r', { executions: [execution('e', { sessionId: undefined, endedAt: NOW, result: 'succeeded' })] }))).toBeUndefined()
     expect(reworkSessionId(settledTask('r', { executions: [execution('e', { sessionId: 's1' })] }))).toBeUndefined()
+  })
+})
+
+describe('sourceSessionId', () => {
+  const sourced = (id: string, overrides: Partial<TaskRecord> = {}) =>
+    makeTask(id, { sourceSession: { id: 'src-1', title: '写周报' }, ...overrides })
+
+  it('continues the source session of the card when the idle roster confirms it', () => {
+    expect(sourceSessionId(sourced('s'), new Set(['src-1']))).toBe('src-1')
+  })
+
+  it('fails closed on an unknown roster, a busy source, or a missing source', () => {
+    expect(sourceSessionId(sourced('s'), undefined)).toBeUndefined()
+    expect(sourceSessionId(sourced('s'), new Set(['other']))).toBeUndefined()
+    expect(sourceSessionId(sourced('s', { sourceSession: undefined }), new Set(['src-1']))).toBeUndefined()
+  })
+
+  it('anchors a card ahead of the plain reuse rule (source wins over the previous-run session)', () => {
+    const task = sourced('s', {
+      reuseSession: true,
+      executions: [execution('e1', { sessionId: 'prev-run', endedAt: NOW - 10_000, result: 'succeeded' })],
+    })
+    expect(sourceSessionId(task, new Set(['src-1', 'prev-run']))).toBe('src-1')
+    // Without the source pin, the same card falls through to the reuse rule.
+    const plain = makeTask('s', {
+      reuseSession: true,
+      executions: [execution('e1', { sessionId: 'prev-run', endedAt: NOW - 10_000, result: 'succeeded' })],
+    })
+    expect(sourceSessionId(plain, new Set(['prev-run']))).toBeUndefined()
+    expect(reusableSessionId(plain, new Set(['prev-run']))).toBe('prev-run')
   })
 })
 

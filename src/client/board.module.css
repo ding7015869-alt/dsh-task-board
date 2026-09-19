@@ -589,6 +589,25 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* Source-session chip on a card: the conversation the card was created
+ * from (session-row "add as task card" entry). The session title can be
+ * long, so the pill is capped and ellipsized (the full text rides the
+ * chip's title attribute). */
+.cardSessionChip {
+  flex: none;
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 /* Dependency-gate badge on a card: pending parent count. */
 .cardGate {
   flex: none;
@@ -1081,9 +1100,108 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   border-color: var(--dsw-alias-state-error-primary);
 }
 
-.schedulePreset {
-  flex: none;
-  padding: 7px 8px;
+.scheduleMeta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* --- schedule spec editor (reminder-app style) --------------------------- */
+
+.scheduleEditor {
+  display: flex;
+  flex-direction: column;
+}
+
+.scheduleFreq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scheduleFreqBtn {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.scheduleFreqBtn[data-active] {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.scheduleSpecRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.scheduleDayChips,
+.scheduleQuickChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scheduleDayChip,
+.scheduleQuickChip {
+  padding: 4px 9px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.scheduleDayChip[data-on] {
+  color: var(--dsw-alias-bg-base);
+  background: var(--dsw-alias-state-business-primary);
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.scheduleQuickChip[data-on] {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.scheduleTimeField {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.scheduleTimeColon {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.scheduleTimeInput,
+.scheduleEveryInput {
+  width: 52px;
+  padding: 5px 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+}
+
+.scheduleUnitSelect {
+  padding: 5px 8px;
   font-size: 12.5px;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-specific-input-major);
@@ -1092,8 +1210,8 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   outline: none;
 }
 
-.scheduleMeta {
-  margin: 0;
+.scheduleDesc {
+  margin: 8px 0 0;
   font-size: 12px;
   color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
@@ -1309,7 +1427,12 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   .search,
   .input,
   .select,
-  .schedulePreset,
+  .scheduleFreqBtn,
+  .scheduleDayChip,
+  .scheduleQuickChip,
+  .scheduleTimeInput,
+  .scheduleEveryInput,
+  .scheduleUnitSelect,
   .scheduleToggle {
     min-height: 44px;
   }
@@ -1317,7 +1440,7 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   .search,
   .input,
   .select,
-  .schedulePreset {
+  .scheduleUnitSelect {
     box-sizing: border-box;
     font-size: 16px;
   }
@@ -1400,8 +1523,10 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
     flex-direction: column;
   }
 
-  .schedulePreset {
-    width: 100%;
+  .scheduleFreqBtn,
+  .scheduleDayChip,
+  .scheduleQuickChip {
+    flex: 1 1 auto;
   }
 }
 
@@ -1424,7 +1549,12 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
 .search:focus-visible,
 .input:focus-visible,
 .select:focus-visible,
-.schedulePreset:focus-visible,
+.scheduleFreqBtn:focus-visible,
+.scheduleDayChip:focus-visible,
+.scheduleQuickChip:focus-visible,
+.scheduleTimeInput:focus-visible,
+.scheduleEveryInput:focus-visible,
+.scheduleUnitSelect:focus-visible,
 .scheduleToggle input:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: 2px;
@@ -1441,7 +1571,12 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
 .search,
 .input,
 .select,
-.schedulePreset,
+.scheduleFreqBtn,
+.scheduleDayChip,
+.scheduleQuickChip,
+.scheduleTimeInput,
+.scheduleEveryInput,
+.scheduleUnitSelect,
 .scheduleToggle input {
   transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, outline-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
@@ -1486,7 +1621,9 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
 /* --- search box focus (border tint + themed ring above) --- */
 .search:focus,
 .select:focus,
-.schedulePreset:focus {
+.scheduleTimeInput:focus,
+.scheduleEveryInput:focus,
+.scheduleUnitSelect:focus {
   border-color: var(--dsw-alias-state-business-primary);
 }
 
@@ -1508,7 +1645,12 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   .search,
   .input,
   .select,
-  .schedulePreset,
+  .scheduleFreqBtn,
+  .scheduleDayChip,
+  .scheduleQuickChip,
+  .scheduleTimeInput,
+  .scheduleEveryInput,
+  .scheduleUnitSelect,
   .scheduleToggle input {
     transition: none;
   }

@@ -10,7 +10,7 @@
  * localStorage backend.
  */
 import { isValidCron } from './schedule.ts'
-import { isTaskPermission, isTaskStatus, normalizeParentIds, normalizeTargetId, type ExecutionRecord, type ReworkNote, type ScheduleRule, type TaskFreeze, type TaskRecord, type TaskPermission, type TaskStatus } from './tasks.ts'
+import { isTaskPermission, isTaskStatus, normalizeParentIds, normalizeSourceSession, normalizeTargetId, type ExecutionRecord, type ReworkNote, type ScheduleRule, type TaskFreeze, type TaskRecord, type TaskPermission, type TaskStatus } from './tasks.ts'
 import type { TaskHandover } from './handover.ts'
 import { sanitizeFreezeSnapshot } from './freeze-snapshot.ts'
 import { sanitizeHandover } from './handover.ts'
@@ -220,6 +220,10 @@ export function parseLedger(raw: string | null): TaskRecord[] {
     task.archivedAt = typeof row.archivedAt === 'number' && Number.isFinite(row.archivedAt) ? row.archivedAt : undefined
     task.permission = isTaskPermission(row.permission) ? row.permission as TaskPermission : undefined
     task.reuseSession = row.reuseSession === true ? true : undefined
+    // The source-session pin (the session the card was minted from) repairs
+    // like the other optional pins: trim the id, drop a blank title, and
+    // clear the field alone when it is malformed — the task row is kept.
+    task.sourceSession = normalizeSourceSession(row.sourceSession)
     // Dependency edges normalize like the execution targets: a parent-id list
     // (deduped, the task's own id excluded, blank entries dropped). Missing
     // field on an older ledger yields an empty list — an ungated task.

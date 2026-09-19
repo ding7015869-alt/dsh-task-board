@@ -2,8 +2,10 @@
  * Task card: the board's column item. The body button opens the task detail —
  * it never executes anything directly (detail holds the Run button). The
  * session button (magnifier, top-right corner) jumps straight to the task's
- * newest execution session; without a session yet it falls back to opening
- * the detail (description / context live there).
+ * newest execution session, or — before the first run — to the card's source
+ * session (the session it was created from, shown as a chip in the meta row);
+ * without any session it falls back to opening the detail (description /
+ * context live there).
  *
  * Memoized: the card re-renders only when its own task record, gate state,
  * or click handler changes, so a status/filter update on one card (or
@@ -60,7 +62,10 @@ function TaskCardInner({ task, pending, timeZone, onClick, onOpenSession, gateCo
   const runs = task.executions.length
   const archived = task.archivedAt !== undefined
   const isDraggable = !archived && task.status !== 'running' && !pending
-  const sessionId = latestSessionIdOf(task)
+  // The card's session link: the newest execution session, or — before any
+  // run — the source session the card was minted from (the chip below);
+  // without either, the magnifier falls back to the detail.
+  const sessionId = latestSessionIdOf(task) ?? task.sourceSession?.id
   const sessionLabel = sessionId !== undefined ? t('card.viewSession') : t('card.openDetail')
   // The card's owning project (dangling pins fall back to the default,
   // mirroring the ledger's load-time backfill); hidden without a roster.
@@ -100,6 +105,14 @@ function TaskCardInner({ task, pending, timeZone, onClick, onOpenSession, gateCo
                 style={{ background: `var(${owningProject.color})` }}
               />
               <span className={css.projectChipName}>{owningProject.name}</span>
+            </span>
+          )}
+          {task.sourceSession !== undefined && (
+            <span
+              className={css.cardSessionChip}
+              title={t('card.sourceSession', { session: task.sourceSession.title ?? task.sourceSession.id })}
+            >
+              {t('card.sessionChip', { session: task.sourceSession.title ?? task.sourceSession.id })}
             </span>
           )}
           {task.freeze !== undefined && (
